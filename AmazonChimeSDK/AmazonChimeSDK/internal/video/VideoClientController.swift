@@ -8,6 +8,7 @@
 
 import AmazonChimeSDKMedia
 import Foundation
+import UIKit
 
 @objc public protocol VideoClientController {
     func start(turnControlUrl: String,
@@ -26,4 +27,5 @@ import Foundation
     func subscribeToVideoTileControllerObservers(observer: VideoTileController)
     func unsubscribeToVideoTileControllerObservers(observer: VideoTileController)
     func pauseResumeRemoteVideo(_ videoId: UInt32, pause: Bool)
+    func setFilterImage(_ image: UIImage)
 }

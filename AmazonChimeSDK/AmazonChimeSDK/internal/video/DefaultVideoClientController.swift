@@ -33,6 +33,8 @@ class DefaultVideoClientController: NSObject {
     private let turnRequestHttpMethod = "POST"
     private let urlRewriter: URLRewriter
 
+    private var filterImage: UIImage?
+
     init(videoClient: VideoClient, logger: Logger,
          clientMetricsCollector: ClientMetricsCollector,
          urlRewriter: @escaping URLRewriter) {
@@ -112,6 +114,66 @@ class DefaultVideoClientController: NSObject {
                 return
             }
         }.resume()
+    }
+
+    private func convertToUIImage(from cvPixelBuffer: CVPixelBuffer?) -> UIImage? {
+        guard let cvPixelBuffer = cvPixelBuffer else { return nil }
+        let ciImage = CIImage(cvPixelBuffer: cvPixelBuffer)
+        let uiImage = UIImage(ciImage: ciImage)
+        return uiImage
+    }
+
+    private func convertToCVPixelBuffer(from uiImage: UIImage?) -> CVPixelBuffer? {
+        guard let uiImage = uiImage, let cgImage = uiImage.cgImage else { return nil }
+        let options = [
+            kCVPixelBufferCGImageCompatibilityKey as String: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
+        ] as CFDictionary?
+        let width = cgImage.width
+        let height = cgImage.height
+        let bitsPerComponent: size_t = 8
+        let bytePerRow: size_t = width * 4
+
+        var cvPixelBuffer: CVPixelBuffer?
+
+        CVPixelBufferCreate(kCFAllocatorDefault, width, height, kCVPixelFormatType_32ARGB, options, &cvPixelBuffer)
+        guard cvPixelBuffer != nil else { return nil }
+        CVPixelBufferLockBaseAddress(cvPixelBuffer!, CVPixelBufferLockFlags(rawValue: 0))
+
+        guard let pixelData: UnsafeMutableRawPointer = CVPixelBufferGetBaseAddress(cvPixelBuffer!) else { return nil }
+        guard let context: CGContext = CGContext(
+            data: pixelData,
+            width: width,
+            height: height,
+            bitsPerComponent: bitsPerComponent,
+            bytesPerRow: bytePerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
+        ) else { return nil }
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height)))
+
+        CVPixelBufferUnlockBaseAddress(cvPixelBuffer!, CVPixelBufferLockFlags(rawValue: 0))
+
+        return cvPixelBuffer
+    }
+
+    private func composite(baseImage: UIImage?, filterImage: UIImage?) -> UIImage? {
+        guard let baseImage = baseImage, let filterImage = filterImage else { return nil }
+        UIGraphicsBeginImageContextWithOptions(baseImage.size, false, 0)
+        baseImage.draw(in: CGRect(x: 0, y: 0, width: baseImage.size.width, height: baseImage.size.height))
+
+        let rect = CGRect(
+            x: (baseImage.size.width - filterImage.size.width) * 0.5,
+            y: (baseImage.size.height - filterImage.size.height) * 0.5,
+            width: filterImage.size.width,
+            height: filterImage.size.height
+        )
+        filterImage.draw(in: rect)
+
+        let newImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+
+        return newImage
     }
 
     // MARK: VideoClientController
@@ -220,8 +282,12 @@ extension DefaultVideoClientController: VideoClientDelegate {
             translatedPauseState = .unpaused
         }
 
+        let image = convertToUIImage(from: buffer)
+        let newImage = composite(baseImage: image, filterImage: filterImage)
+        let newBuffer = convertToCVPixelBuffer(from: newImage) ?? buffer
+
         ObserverUtils.forEach(observers: videoTileControllerObservers) { (observer: VideoTileController) in
-            observer.onReceiveFrame(frame: buffer,
+            observer.onReceiveFrame(frame: newBuffer,
                                     attendeeId: profileId,
                                     pauseState: translatedPauseState,
                                     videoId: Int(videoId))
@@ -426,5 +492,10 @@ extension DefaultVideoClientController: VideoClientController {
     public func pauseResumeRemoteVideo(_ videoId: UInt32, pause: Bool) {
         logger.info(msg: "pauseResumeRemoteVideo")
         videoClient?.setRemotePause(videoId, pause: pause)
+    }
+
+    public func setFilterImage(_ image: UIImage) {
+        logger.info(msg: "setFilterImage")
+        filterImage = image
     }
 }

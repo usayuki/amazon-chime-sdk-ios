@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import UIKit
 
 @objcMembers public class DefaultAudioVideoFacade: AudioVideoFacade {
     public let configuration: MeetingSessionConfiguration
@@ -62,6 +63,10 @@ import Foundation
 
     public func stopRemoteVideo() {
         audioVideoController.stopRemoteVideo()
+    }
+
+    public func setFilterImage(_ image: UIImage) {
+        audioVideoController.setFilterImage(image)
     }
 
     private func trace(name: String) {

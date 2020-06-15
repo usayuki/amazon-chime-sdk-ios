@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import UIKit
 
 /// `AudioVideoControllerFacade` manages the signaling and peer connections.
 @objc public protocol AudioVideoControllerFacade {
@@ -41,6 +42,11 @@ import Foundation
 
     /// Disable remote video to stop receiving streams
     func stopRemoteVideo()
+
+    /// Set the image to be combined
+    ///
+    /// - Parameter image: Image to be composed
+    func setFilterImage(_ image: UIImage)
 
     /// Subscribe to audio, video, and connection events with an `AudioVideoObserver`.
     ///

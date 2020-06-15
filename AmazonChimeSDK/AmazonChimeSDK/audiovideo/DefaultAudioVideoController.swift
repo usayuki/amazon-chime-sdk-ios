@@ -8,6 +8,7 @@
 
 import AVFoundation
 import Foundation
+import UIKit
 
 @objcMembers public class DefaultAudioVideoController: AudioVideoControllerFacade {
     public let configuration: MeetingSessionConfiguration
@@ -93,5 +94,9 @@ import Foundation
 
     public func stopRemoteVideo() {
         videoClientController.stopRemoteVideo()
+    }
+
+    public func setFilterImage(_ image: UIImage) {
+        videoClientController.setFilterImage(image)
     }
 }
