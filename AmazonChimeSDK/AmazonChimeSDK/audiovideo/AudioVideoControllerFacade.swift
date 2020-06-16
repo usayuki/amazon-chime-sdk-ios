@@ -43,10 +43,9 @@ import UIKit
     /// Disable remote video to stop receiving streams
     func stopRemoteVideo()
 
-    /// Set the image to be combined
-    ///
-    /// - Parameter image: Image to be composed
-    func setFilterImage(_ image: UIImage)
+    func setupDelegate(_ delegate: DefaultVideoClientControllerDelegate)
+
+    func didReceive(_ buffer: CVPixelBuffer?)
 
     /// Subscribe to audio, video, and connection events with an `AudioVideoObserver`.
     ///

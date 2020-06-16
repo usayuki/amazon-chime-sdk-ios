@@ -27,5 +27,6 @@ import UIKit
     func subscribeToVideoTileControllerObservers(observer: VideoTileController)
     func unsubscribeToVideoTileControllerObservers(observer: VideoTileController)
     func pauseResumeRemoteVideo(_ videoId: UInt32, pause: Bool)
-    func setFilterImage(_ image: UIImage)
+    func setupDelegate(_ delegate: DefaultVideoClientControllerDelegate)
+    func didReceive(_ buffer: CVPixelBuffer?)
 }

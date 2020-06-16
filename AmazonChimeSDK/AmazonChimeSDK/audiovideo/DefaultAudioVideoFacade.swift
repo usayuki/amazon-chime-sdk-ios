@@ -65,8 +65,12 @@ import UIKit
         audioVideoController.stopRemoteVideo()
     }
 
-    public func setFilterImage(_ image: UIImage) {
-        audioVideoController.setFilterImage(image)
+    public func setupDelegate(_ delegate: DefaultVideoClientControllerDelegate) {
+        audioVideoController.setupDelegate(delegate)
+    }
+
+    public func didReceive(_ buffer: CVPixelBuffer?) {
+        audioVideoController.didReceive(buffer)
     }
 
     private func trace(name: String) {

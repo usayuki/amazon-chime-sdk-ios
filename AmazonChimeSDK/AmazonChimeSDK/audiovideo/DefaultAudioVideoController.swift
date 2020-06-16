@@ -96,7 +96,11 @@ import UIKit
         videoClientController.stopRemoteVideo()
     }
 
-    public func setFilterImage(_ image: UIImage) {
-        videoClientController.setFilterImage(image)
+    public func setupDelegate(_ delegate: DefaultVideoClientControllerDelegate) {
+        videoClientController.setupDelegate(delegate)
+    }
+
+    public func didReceive(_ buffer: CVPixelBuffer?) {
+        videoClientController.didReceive(buffer)
     }
 }

@@ -11,6 +11,10 @@ import AVFoundation
 import Foundation
 import UIKit
 
+@objc public protocol DefaultVideoClientControllerDelegate {
+    func didReceive(_ buffer: CVPixelBuffer)
+}
+
 class DefaultVideoClientController: NSObject {
     var clientMetricsCollector: ClientMetricsCollector
     var joinToken: String?
@@ -22,6 +26,7 @@ class DefaultVideoClientController: NSObject {
     let videoTileControllerObservers = ConcurrentMutableSet()
     let videoObservers = ConcurrentMutableSet()
     var turnControlUrl: String?
+    weak var delegate: DefaultVideoClientControllerDelegate?
 
     private let contentTypeHeader = "Content-Type"
     private let contentType = "application/json"
@@ -33,7 +38,9 @@ class DefaultVideoClientController: NSObject {
     private let turnRequestHttpMethod = "POST"
     private let urlRewriter: URLRewriter
 
-    private var filterImage: UIImage?
+    private var profileId: String!
+    private var pauseState: PauseState!
+    private var videoId: UInt32!
 
     init(videoClient: VideoClient, logger: Logger,
          clientMetricsCollector: ClientMetricsCollector,
@@ -116,64 +123,26 @@ class DefaultVideoClientController: NSObject {
         }.resume()
     }
 
-    private func convertToUIImage(from cvPixelBuffer: CVPixelBuffer?) -> UIImage? {
-        guard let cvPixelBuffer = cvPixelBuffer else { return nil }
-        let ciImage = CIImage(cvPixelBuffer: cvPixelBuffer)
-        let uiImage = UIImage(ciImage: ciImage)
-        return uiImage
-    }
+    private func onReceiveFrame(_ frame: CVPixelBuffer?) {
+        // Translate the Obj-C enum to the public Swift enum
+        var translatedPauseState: VideoPauseState
+        switch pauseState {
+        case .Unpaused:
+            translatedPauseState = .unpaused
+        case .PausedByUserRequest:
+            translatedPauseState = .pausedByUserRequest
+        case .PausedForPoorConnection:
+            translatedPauseState = .pausedForPoorConnection
+        default:
+            translatedPauseState = .unpaused
+        }
 
-    private func convertToCVPixelBuffer(from uiImage: UIImage?) -> CVPixelBuffer? {
-        guard let uiImage = uiImage, let cgImage = uiImage.cgImage else { return nil }
-        let options = [
-            kCVPixelBufferCGImageCompatibilityKey as String: true,
-            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
-        ] as CFDictionary?
-        let width = cgImage.width
-        let height = cgImage.height
-        let bitsPerComponent: size_t = 8
-        let bytePerRow: size_t = width * 4
-
-        var cvPixelBuffer: CVPixelBuffer?
-
-        CVPixelBufferCreate(kCFAllocatorDefault, width, height, kCVPixelFormatType_32ARGB, options, &cvPixelBuffer)
-        guard cvPixelBuffer != nil else { return nil }
-        CVPixelBufferLockBaseAddress(cvPixelBuffer!, CVPixelBufferLockFlags(rawValue: 0))
-
-        guard let pixelData: UnsafeMutableRawPointer = CVPixelBufferGetBaseAddress(cvPixelBuffer!) else { return nil }
-        guard let context: CGContext = CGContext(
-            data: pixelData,
-            width: width,
-            height: height,
-            bitsPerComponent: bitsPerComponent,
-            bytesPerRow: bytePerRow,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
-        ) else { return nil }
-        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height)))
-
-        CVPixelBufferUnlockBaseAddress(cvPixelBuffer!, CVPixelBufferLockFlags(rawValue: 0))
-
-        return cvPixelBuffer
-    }
-
-    private func composite(baseImage: UIImage?, filterImage: UIImage?) -> UIImage? {
-        guard let baseImage = baseImage, let filterImage = filterImage else { return nil }
-        UIGraphicsBeginImageContextWithOptions(baseImage.size, false, 0)
-        baseImage.draw(in: CGRect(x: 0, y: 0, width: baseImage.size.width, height: baseImage.size.height))
-
-        let rect = CGRect(
-            x: (baseImage.size.width - filterImage.size.width) * 0.5,
-            y: (baseImage.size.height - filterImage.size.height) * 0.5,
-            width: filterImage.size.width,
-            height: filterImage.size.height
-        )
-        filterImage.draw(in: rect)
-
-        let newImage = UIGraphicsGetImageFromCurrentImageContext()
-        UIGraphicsEndImageContext()
-
-        return newImage
+        ObserverUtils.forEach(observers: videoTileControllerObservers) { (observer: VideoTileController) in
+            observer.onReceiveFrame(frame: frame,
+                                    attendeeId: self.profileId,
+                                    pauseState: translatedPauseState,
+                                    videoId: Int(self.videoId))
+        }
     }
 
     // MARK: VideoClientController
@@ -268,29 +237,14 @@ class DefaultVideoClientController: NSObject {
 // MARK: - VideoClientDelegate
 
 extension DefaultVideoClientController: VideoClientDelegate {
-    func didReceive(_ buffer: CVPixelBuffer?, profileId: String?, pauseState: PauseState, videoId: UInt32) {
-        // Translate the Obj-C enum to the public Swift enum
-        var translatedPauseState: VideoPauseState
-        switch pauseState {
-        case .Unpaused:
-            translatedPauseState = .unpaused
-        case .PausedByUserRequest:
-            translatedPauseState = .pausedByUserRequest
-        case .PausedForPoorConnection:
-            translatedPauseState = .pausedForPoorConnection
-        default:
-            translatedPauseState = .unpaused
-        }
+    func didReceive(_ buffer: CVPixelBuffer!, profileId: String!, pauseState: PauseState, videoId: UInt32) {
+        self.profileId = profileId
+        self.pauseState = pauseState
+        self.videoId = videoId
+        delegate?.didReceive(buffer)
 
-        let image = convertToUIImage(from: buffer)
-        let newImage = composite(baseImage: image, filterImage: filterImage)
-        let newBuffer = convertToCVPixelBuffer(from: newImage) ?? buffer
-
-        ObserverUtils.forEach(observers: videoTileControllerObservers) { (observer: VideoTileController) in
-            observer.onReceiveFrame(frame: newBuffer,
-                                    attendeeId: profileId,
-                                    pauseState: translatedPauseState,
-                                    videoId: Int(videoId))
+        if delegate == nil {
+            onReceiveFrame(buffer)
         }
     }
 
@@ -494,8 +448,11 @@ extension DefaultVideoClientController: VideoClientController {
         videoClient?.setRemotePause(videoId, pause: pause)
     }
 
-    public func setFilterImage(_ image: UIImage) {
-        logger.info(msg: "setFilterImage")
-        filterImage = image
+    public func setupDelegate(_ delegate: DefaultVideoClientControllerDelegate) {
+        self.delegate = delegate
+    }
+
+    public func didReceive(_ buffer: CVPixelBuffer?) {
+        onReceiveFrame(buffer)
     }
 }
