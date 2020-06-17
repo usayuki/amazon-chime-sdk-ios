@@ -6,6 +6,7 @@
 //  SPDX-License-Identifier: Apache-2.0
 //
 
+import AmazonChimeSDKMedia
 import AVFoundation
 import Foundation
 import UIKit
@@ -33,13 +34,13 @@ import UIKit
         self.logger = logger
     }
 
-    public func start() throws {
+    public func start(delegate: VideoClientDelegate? = nil) throws {
         // By default, start for calls without CallKit integration. Use start(callKitEnabled:)
         // to override the default behavior if the call is integrated with CallKit
-        try self.start(callKitEnabled: false)
+        try self.start(callKitEnabled: false, delegate: delegate)
     }
 
-    public func start(callKitEnabled: Bool) throws {
+    public func start(callKitEnabled: Bool, delegate: VideoClientDelegate? = nil) throws {
         let audioPermissionStatus = AVAudioSession.sharedInstance().recordPermission
         if audioPermissionStatus == .denied || audioPermissionStatus == .undetermined {
             throw PermissionError.audioPermissionError
@@ -54,7 +55,8 @@ import UIKit
         videoClientController.start(turnControlUrl: configuration.urls.turnControlUrl,
                                         signalingUrl: configuration.urls.signalingUrl,
                                         meetingId: configuration.meetingId,
-                                        joinToken: configuration.credentials.joinToken)
+                                        joinToken: configuration.credentials.joinToken,
+                                        delegate: delegate)
     }
 
     public func stop() {
@@ -96,11 +98,35 @@ import UIKit
         videoClientController.stopRemoteVideo()
     }
 
-    public func setupDelegate(_ delegate: DefaultVideoClientControllerDelegate) {
-        videoClientController.setupDelegate(delegate)
+    public func didReceive(buffer: CVPixelBuffer?, profileId: String!, pauseState: PauseState, videoId: UInt32) {
+        videoClientController.didReceive(buffer: buffer, profileId: profileId, pauseState: pauseState, videoId: videoId)
     }
 
-    public func didReceive(_ buffer: CVPixelBuffer?) {
-        videoClientController.didReceive(buffer)
+    public func videoClientIsConnecting(client: VideoClient?) {
+        videoClientController.videoClientIsConnecting(client: client)
+    }
+
+    public func videoClientDidConnect(client: VideoClient?, controlStatus: Int32) {
+        videoClientController.videoClientDidConnect(client: client, controlStatus: controlStatus)
+    }
+
+    public func videoClientDidFail(client: VideoClient?, status: video_client_status_t, controlStatus: Int32) {
+        videoClientController.videoClientDidFail(client: client, status: status, controlStatus: controlStatus)
+    }
+
+    public func videoClientDidStop(client: VideoClient?) {
+        videoClientController.videoClientDidStop(client: client)
+    }
+
+    public func videoClient(client: VideoClient?, cameraSendIsAvailable available: Bool) {
+        videoClientController.videoClient(client: client, cameraSendIsAvailable: available)
+    }
+
+    public func videoClientRequestTurnCreds(videoClient: VideoClient?) {
+        videoClientController.videoClientRequestTurnCreds(videoClient: videoClient)
+    }
+
+    public func videoClientMetricsReceived(metrics: [AnyHashable: Any]?) {
+        videoClientController.videoClientMetricsReceived(metrics: metrics)
     }
 }

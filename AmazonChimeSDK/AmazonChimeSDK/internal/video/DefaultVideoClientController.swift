@@ -11,10 +11,6 @@ import AVFoundation
 import Foundation
 import UIKit
 
-@objc public protocol DefaultVideoClientControllerDelegate {
-    func didReceive(_ buffer: CVPixelBuffer)
-}
-
 class DefaultVideoClientController: NSObject {
     var clientMetricsCollector: ClientMetricsCollector
     var joinToken: String?
@@ -26,7 +22,6 @@ class DefaultVideoClientController: NSObject {
     let videoTileControllerObservers = ConcurrentMutableSet()
     let videoObservers = ConcurrentMutableSet()
     var turnControlUrl: String?
-    weak var delegate: DefaultVideoClientControllerDelegate?
 
     private let contentTypeHeader = "Content-Type"
     private let contentType = "application/json"
@@ -37,10 +32,6 @@ class DefaultVideoClientController: NSObject {
     private let tokenKey = "_aws_wt_session"
     private let turnRequestHttpMethod = "POST"
     private let urlRewriter: URLRewriter
-
-    private var profileId: String!
-    private var pauseState: PauseState!
-    private var videoId: UInt32!
 
     init(videoClient: VideoClient, logger: Logger,
          clientMetricsCollector: ClientMetricsCollector,
@@ -123,28 +114,6 @@ class DefaultVideoClientController: NSObject {
         }.resume()
     }
 
-    private func onReceiveFrame(_ frame: CVPixelBuffer?) {
-        // Translate the Obj-C enum to the public Swift enum
-        var translatedPauseState: VideoPauseState
-        switch pauseState {
-        case .Unpaused:
-            translatedPauseState = .unpaused
-        case .PausedByUserRequest:
-            translatedPauseState = .pausedByUserRequest
-        case .PausedForPoorConnection:
-            translatedPauseState = .pausedForPoorConnection
-        default:
-            translatedPauseState = .unpaused
-        }
-
-        ObserverUtils.forEach(observers: videoTileControllerObservers) { (observer: VideoTileController) in
-            observer.onReceiveFrame(frame: frame,
-                                    attendeeId: self.profileId,
-                                    pauseState: translatedPauseState,
-                                    videoId: Int(self.videoId))
-        }
-    }
-
     // MARK: VideoClientController
 
     private func checkVideoPermission() throws {
@@ -187,14 +156,14 @@ class DefaultVideoClientController: NSObject {
         }
     }
 
-    func initialize() {
+    func initialize(delegate: VideoClientDelegate? = nil) {
         guard videoClientState == .uninitialized else {
             logger.info(msg: "VideoClientState is not UNINITIALIZED, no need to initialize again")
             return
         }
         logger.info(msg: "Initializing VideoClient")
         videoClient = defaultVideoClient
-        videoClient?.delegate = self
+        videoClient?.delegate = delegate ?? self
         videoClientState = .initialized
     }
 
@@ -238,91 +207,36 @@ class DefaultVideoClientController: NSObject {
 
 extension DefaultVideoClientController: VideoClientDelegate {
     func didReceive(_ buffer: CVPixelBuffer!, profileId: String!, pauseState: PauseState, videoId: UInt32) {
-        self.profileId = profileId
-        self.pauseState = pauseState
-        self.videoId = videoId
-        delegate?.didReceive(buffer)
-
-        if delegate == nil {
-            onReceiveFrame(buffer)
-        }
+        didReceive(buffer: buffer, profileId: profileId, pauseState: pauseState, videoId: videoId)
     }
 
     // swiftlint:enable function_parameter_count
     public func videoClientIsConnecting(_ client: VideoClient?) {
-        logger.info(msg: "videoClientIsConnecting")
-        ObserverUtils.forEach(observers: videoObservers) { (observer: AudioVideoObserver) in
-            observer.videoSessionDidStartConnecting()
-        }
+        videoClientIsConnecting(client: client)
     }
 
     public func videoClientDidConnect(_ client: VideoClient?, controlStatus: Int32) {
-        logger.info(msg: "videoClientDidConnect, \(controlStatus)")
-        ObserverUtils.forEach(observers: videoObservers) { (observer: AudioVideoObserver) in
-            switch Int(controlStatus) {
-            case Constants.videoClientStatusCallAtCapacityViewOnly:
-                observer.videoSessionDidStartWithStatus(
-                    sessionStatus: MeetingSessionStatus(statusCode: MeetingSessionStatusCode.videoAtCapacityViewOnly)
-                )
-            default:
-                observer.videoSessionDidStartWithStatus(sessionStatus:
-                    MeetingSessionStatus(statusCode: MeetingSessionStatusCode.ok))
-            }
-        }
+        videoClientDidConnect(client: client, controlStatus: controlStatus)
     }
 
     public func videoClientDidFail(_ client: VideoClient?, status: video_client_status_t, controlStatus: Int32) {
-        logger.info(msg: "videoClientDidFail")
-        ObserverUtils.forEach(observers: videoObservers) { (observer: AudioVideoObserver) in
-            observer.videoSessionDidStopWithStatus(sessionStatus:
-                MeetingSessionStatus(statusCode: .videoServiceUnavailable))
-        }
+        videoClientDidFail(client: client, status: status, controlStatus: controlStatus)
     }
 
     public func videoClientDidStop(_ client: VideoClient?) {
-        logger.info(msg: "videoClientDidStop")
-        ObserverUtils.forEach(observers: videoObservers) { (observer: AudioVideoObserver) in
-            observer.videoSessionDidStopWithStatus(sessionStatus: MeetingSessionStatus(statusCode: .ok))
-        }
+        videoClientDidStop(client: client)
     }
 
     public func videoClient(_ client: VideoClient?, cameraSendIsAvailable available: Bool) {
-        logger.info(msg: "videoClientCameraSendIsAvailable")
+        videoClient(client: client, cameraSendIsAvailable: available)
     }
 
     public func videoClientRequestTurnCreds(_ videoClient: VideoClient?) {
-        guard
-            let turnControlUrl = turnControlUrl,
-            let joinToken = self.joinToken,
-            let serverUrl = URL(string: turnControlUrl)
-        else {
-            logger.error(msg: "Failed to request TURN creds because required info is missing")
-            return
-        }
-        logger.info(msg: "Requesting TURN creds")
-
-        // Prepare TURN request
-        var request = URLRequest(url: serverUrl)
-        request.httpMethod = turnRequestHttpMethod
-        request.addValue("\(tokenKey)=\(joinToken)", forHTTPHeaderField: tokenHeader)
-        request.addValue(contentType, forHTTPHeaderField: contentTypeHeader)
-        request.addValue(getUserAgent(), forHTTPHeaderField: userAgentTypeHeader)
-
-        // Write meetingId into HTTP request body
-        let meetingIdDict = [meetingIdKey: meetingId]
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: meetingIdDict)
-        } catch {
-            logger.error(msg: "Failed to set meetingId in TURN request payload, error: \(error.localizedDescription)")
-            return
-        }
-
-        makeTurnRequest(request: request)
+        videoClientRequestTurnCreds(videoClient: videoClient)
     }
 
     public func videoClientMetricsReceived(_ metrics: [AnyHashable: Any]?) {
-        guard let metrics = metrics else { return }
-        clientMetricsCollector.processVideoClientMetrics(metrics: metrics)
+        videoClientMetricsReceived(metrics: metrics)
     }
 }
 
@@ -332,7 +246,8 @@ extension DefaultVideoClientController: VideoClientController {
     public func start(turnControlUrl: String,
                       signalingUrl: String,
                       meetingId: String,
-                      joinToken: String) {
+                      joinToken: String,
+                      delegate: VideoClientDelegate? = nil) {
         self.turnControlUrl = turnControlUrl
         self.signalingUrl = signalingUrl
         self.meetingId = meetingId
@@ -340,7 +255,7 @@ extension DefaultVideoClientController: VideoClientController {
 
         switch videoClientState {
         case .uninitialized:
-            initialize()
+            initialize(delegate: delegate)
             startInitializedVideoClient()
         case .started:
             logger.info(msg: "VideoClientState is already STARTED")
@@ -448,11 +363,101 @@ extension DefaultVideoClientController: VideoClientController {
         videoClient?.setRemotePause(videoId, pause: pause)
     }
 
-    public func setupDelegate(_ delegate: DefaultVideoClientControllerDelegate) {
-        self.delegate = delegate
+    public func didReceive(buffer: CVPixelBuffer?, profileId: String!, pauseState: PauseState, videoId: UInt32) {
+        // Translate the Obj-C enum to the public Swift enum
+        var translatedPauseState: VideoPauseState
+        switch pauseState {
+        case .Unpaused:
+            translatedPauseState = .unpaused
+        case .PausedByUserRequest:
+            translatedPauseState = .pausedByUserRequest
+        case .PausedForPoorConnection:
+            translatedPauseState = .pausedForPoorConnection
+        default:
+            translatedPauseState = .unpaused
+        }
+
+        ObserverUtils.forEach(observers: videoTileControllerObservers) { (observer: VideoTileController) in
+            observer.onReceiveFrame(frame: buffer,
+                                    attendeeId: profileId,
+                                    pauseState: translatedPauseState,
+                                    videoId: Int(videoId))
+        }
     }
 
-    public func didReceive(_ buffer: CVPixelBuffer?) {
-        onReceiveFrame(buffer)
+    public func videoClientIsConnecting(client: VideoClient?) {
+        logger.info(msg: "videoClientIsConnecting")
+        ObserverUtils.forEach(observers: videoObservers) { (observer: AudioVideoObserver) in
+            observer.videoSessionDidStartConnecting()
+        }
+    }
+
+    public func videoClientDidConnect(client: VideoClient?, controlStatus: Int32) {
+        logger.info(msg: "videoClientDidConnect, \(controlStatus)")
+        ObserverUtils.forEach(observers: videoObservers) { (observer: AudioVideoObserver) in
+            switch Int(controlStatus) {
+            case Constants.videoClientStatusCallAtCapacityViewOnly:
+                observer.videoSessionDidStartWithStatus(
+                    sessionStatus: MeetingSessionStatus(statusCode: MeetingSessionStatusCode.videoAtCapacityViewOnly)
+                )
+            default:
+                observer.videoSessionDidStartWithStatus(sessionStatus:
+                    MeetingSessionStatus(statusCode: MeetingSessionStatusCode.ok))
+            }
+        }
+    }
+
+    public func videoClientDidFail(client: VideoClient?, status: video_client_status_t, controlStatus: Int32) {
+        logger.info(msg: "videoClientDidFail")
+        ObserverUtils.forEach(observers: videoObservers) { (observer: AudioVideoObserver) in
+            observer.videoSessionDidStopWithStatus(sessionStatus:
+                MeetingSessionStatus(statusCode: .videoServiceUnavailable))
+        }
+    }
+
+    public func videoClientDidStop(client: VideoClient?) {
+        logger.info(msg: "videoClientDidStop")
+        ObserverUtils.forEach(observers: videoObservers) { (observer: AudioVideoObserver) in
+            observer.videoSessionDidStopWithStatus(sessionStatus: MeetingSessionStatus(statusCode: .ok))
+        }
+    }
+
+    public func videoClient(client: VideoClient?, cameraSendIsAvailable available: Bool) {
+        logger.info(msg: "videoClientCameraSendIsAvailable")
+    }
+
+    public func videoClientRequestTurnCreds(videoClient: VideoClient?) {
+        guard
+            let turnControlUrl = turnControlUrl,
+            let joinToken = self.joinToken,
+            let serverUrl = URL(string: turnControlUrl)
+        else {
+            logger.error(msg: "Failed to request TURN creds because required info is missing")
+            return
+        }
+        logger.info(msg: "Requesting TURN creds")
+
+        // Prepare TURN request
+        var request = URLRequest(url: serverUrl)
+        request.httpMethod = turnRequestHttpMethod
+        request.addValue("\(tokenKey)=\(joinToken)", forHTTPHeaderField: tokenHeader)
+        request.addValue(contentType, forHTTPHeaderField: contentTypeHeader)
+        request.addValue(getUserAgent(), forHTTPHeaderField: userAgentTypeHeader)
+
+        // Write meetingId into HTTP request body
+        let meetingIdDict = [meetingIdKey: meetingId]
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: meetingIdDict)
+        } catch {
+            logger.error(msg: "Failed to set meetingId in TURN request payload, error: \(error.localizedDescription)")
+            return
+        }
+
+        makeTurnRequest(request: request)
+    }
+
+    public func videoClientMetricsReceived(metrics: [AnyHashable: Any]?) {
+        guard let metrics = metrics else { return }
+        clientMetricsCollector.processVideoClientMetrics(metrics: metrics)
     }
 }

@@ -14,7 +14,8 @@ import UIKit
     func start(turnControlUrl: String,
                signalingUrl: String,
                meetingId: String,
-               joinToken: String)
+               joinToken: String,
+               delegate: VideoClientDelegate?)
     func stopAndDestroy()
     func startLocalVideo() throws
     func stopLocalVideo()
@@ -27,6 +28,12 @@ import UIKit
     func subscribeToVideoTileControllerObservers(observer: VideoTileController)
     func unsubscribeToVideoTileControllerObservers(observer: VideoTileController)
     func pauseResumeRemoteVideo(_ videoId: UInt32, pause: Bool)
-    func setupDelegate(_ delegate: DefaultVideoClientControllerDelegate)
-    func didReceive(_ buffer: CVPixelBuffer?)
+    func didReceive(buffer: CVPixelBuffer?, profileId: String!, pauseState: PauseState, videoId: UInt32)
+    func videoClientIsConnecting(client: VideoClient?)
+    func videoClientDidConnect(client: VideoClient?, controlStatus: Int32)
+    func videoClientDidFail(client: VideoClient?, status: video_client_status_t, controlStatus: Int32)
+    func videoClientDidStop(client: VideoClient?)
+    func videoClient(client: VideoClient?, cameraSendIsAvailable available: Bool)
+    func videoClientRequestTurnCreds(videoClient: VideoClient?)
+    func videoClientMetricsReceived(metrics: [AnyHashable: Any]?)
 }

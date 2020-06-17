@@ -6,6 +6,7 @@
 //  SPDX-License-Identifier: Apache-2.0
 //
 
+import AmazonChimeSDKMedia
 import Foundation
 import UIKit
 
@@ -19,12 +20,12 @@ import UIKit
     /// This parameter is used to determine how audio session interruptions should be handled,
     /// in scenarios such as receving another phone call during the VoIP call.
     /// - Throws: `PermissionError.audioPermissionError` if `RecordPermission` is not given
-    func start(callKitEnabled: Bool) throws
+    func start(callKitEnabled: Bool, delegate: VideoClientDelegate?) throws
 
     /// Start AudioVideo Controller
     ///
     /// - Throws: `PermissionError.audioPermissionError` if `RecordPermission` is not given
-    func start() throws
+    func start(delegate: VideoClientDelegate?) throws
 
     /// Stop AudioVideo Controller. This will exit the meeting
     func stop()
@@ -42,10 +43,6 @@ import UIKit
 
     /// Disable remote video to stop receiving streams
     func stopRemoteVideo()
-
-    func setupDelegate(_ delegate: DefaultVideoClientControllerDelegate)
-
-    func didReceive(_ buffer: CVPixelBuffer?)
 
     /// Subscribe to audio, video, and connection events with an `AudioVideoObserver`.
     ///
@@ -66,4 +63,13 @@ import UIKit
     ///
     /// - Parameter observer: The observer to unsubscribe from events with
     func removeMetricsObserver(observer: MetricsObserver)
+
+    func didReceive(buffer: CVPixelBuffer?, profileId: String!, pauseState: PauseState, videoId: UInt32)
+    func videoClientIsConnecting(client: VideoClient?)
+    func videoClientDidConnect(client: VideoClient?, controlStatus: Int32)
+    func videoClientDidFail(client: VideoClient?, status: video_client_status_t, controlStatus: Int32)
+    func videoClientDidStop(client: VideoClient?)
+    func videoClient(client: VideoClient?, cameraSendIsAvailable available: Bool)
+    func videoClientRequestTurnCreds(videoClient: VideoClient?)
+    func videoClientMetricsReceived(metrics: [AnyHashable: Any]?)
 }

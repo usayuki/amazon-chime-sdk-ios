@@ -64,7 +64,7 @@ class MeetingViewController: UIViewController {
             try AVAudioSession.sharedInstance().setCategory(AVAudioSession.Category.playAndRecord, options:
                 AVAudioSession.CategoryOptions.allowBluetooth)
             self.setupSubscriptionToAttendeeChangeHandler()
-            try self.currentMeetingSession?.audioVideo.start(callKitEnabled: false)
+            try self.currentMeetingSession?.audioVideo.start(callKitEnabled: false, delegate: nil)
         } catch PermissionError.audioPermissionError {
             let audioPermission = AVAudioSession.sharedInstance().recordPermission
             if audioPermission == .denied {

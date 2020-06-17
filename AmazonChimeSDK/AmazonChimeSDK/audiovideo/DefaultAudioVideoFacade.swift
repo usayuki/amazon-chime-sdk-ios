@@ -6,6 +6,7 @@
 //  SPDX-License-Identifier: Apache-2.0
 //
 
+import AmazonChimeSDKMedia
 import Foundation
 import UIKit
 
@@ -35,13 +36,13 @@ import UIKit
         self.activeSpeakerDetector = activeSpeakerDetector
     }
 
-    public func start(callKitEnabled: Bool = false) throws {
-        try audioVideoController.start(callKitEnabled: callKitEnabled)
+    public func start(callKitEnabled: Bool = false, delegate: VideoClientDelegate? = nil) throws {
+        try audioVideoController.start(callKitEnabled: callKitEnabled, delegate: delegate)
         trace(name: "start(callKitEnabled: \(callKitEnabled))")
     }
 
-    public func start() throws {
-        try self.start(callKitEnabled: false)
+    public func start(delegate: VideoClientDelegate? = nil) throws {
+        try self.start(callKitEnabled: false, delegate: delegate)
     }
 
     public func stop() {
@@ -65,12 +66,36 @@ import UIKit
         audioVideoController.stopRemoteVideo()
     }
 
-    public func setupDelegate(_ delegate: DefaultVideoClientControllerDelegate) {
-        audioVideoController.setupDelegate(delegate)
+    public func didReceive(buffer: CVPixelBuffer?, profileId: String!, pauseState: PauseState, videoId: UInt32) {
+        audioVideoController.didReceive(buffer: buffer, profileId: profileId, pauseState: pauseState, videoId: videoId)
     }
 
-    public func didReceive(_ buffer: CVPixelBuffer?) {
-        audioVideoController.didReceive(buffer)
+    public func videoClientIsConnecting(client: VideoClient?) {
+        audioVideoController.videoClientIsConnecting(client: client)
+    }
+
+    public func videoClientDidConnect(client: VideoClient?, controlStatus: Int32) {
+        audioVideoController.videoClientDidConnect(client: client, controlStatus: controlStatus)
+    }
+
+    public func videoClientDidFail(client: VideoClient?, status: video_client_status_t, controlStatus: Int32) {
+        audioVideoController.videoClientDidFail(client: client, status: status, controlStatus: controlStatus)
+    }
+
+    public func videoClientDidStop(client: VideoClient?) {
+        audioVideoController.videoClientDidStop(client: client)
+    }
+
+    public func videoClient(client: VideoClient?, cameraSendIsAvailable available: Bool) {
+        audioVideoController.videoClient(client: client, cameraSendIsAvailable: available)
+    }
+
+    public func videoClientRequestTurnCreds(videoClient: VideoClient?) {
+        audioVideoController.videoClientRequestTurnCreds(videoClient: videoClient)
+    }
+
+    public func videoClientMetricsReceived(metrics: [AnyHashable: Any]?) {
+        audioVideoController.videoClientMetricsReceived(metrics: metrics)
     }
 
     private func trace(name: String) {
