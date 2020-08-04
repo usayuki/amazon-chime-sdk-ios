@@ -57,9 +57,9 @@ extension DefaultAudioClientController: AudioClientController {
             throw PermissionError.audioPermissionError
         }
 
-        if Self.state == .started {
-            throw MediaError.illegalState
-        }
+//        if Self.state == .started {
+//            throw MediaError.illegalState
+//        }
 
         let url = audioHostUrl.components(separatedBy: ":")
         let host = url[0]
