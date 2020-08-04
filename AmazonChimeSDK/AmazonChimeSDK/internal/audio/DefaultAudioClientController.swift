@@ -82,7 +82,7 @@ extension DefaultAudioClientController: AudioClientController {
         if status == AUDIO_CLIENT_OK {
             Self.state = .started
         } else {
-            throw MediaError.audioFailedToStart
+//            throw MediaError.audioFailedToStart
         }
     }
 
