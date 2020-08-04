@@ -15,9 +15,9 @@ import Foundation
     public let configuration: MeetingSessionConfiguration
     public let logger: Logger
 
-    private let audioSession = AVAudioSession.sharedInstance()
+//    private let audioSession = AVAudioSession.sharedInstance()
 
-    public init(configuration: MeetingSessionConfiguration, logger: Logger) {
+    public init(audioSession: AVAudioSession, configuration: MeetingSessionConfiguration, logger: Logger) {
         self.configuration = configuration
         self.logger = logger
         VideoClient.globalInitialize()
