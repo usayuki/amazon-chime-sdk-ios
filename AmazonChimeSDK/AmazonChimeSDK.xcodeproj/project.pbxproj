@@ -893,7 +893,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "tar -zxvf AmazonChimeSDKMedia-0.6.0.tar.gz\nrm NOTICE.txt THIRD-PARTY.txt\n";
+			shellScript = "curl -OL https://amazon-chime-sdk-ios.s3.amazonaws.com/media/0.6.0/AmazonChimeSDKMedia-0.6.0.tar.gz\ntar -zxvf AmazonChimeSDKMedia-0.6.0.tar.gz\nrm NOTICE.txt THIRD-PARTY.txt\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
