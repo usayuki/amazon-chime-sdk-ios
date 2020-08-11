@@ -893,7 +893,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "echo \"hogeeeeee\"\n";
+			shellScript = "tar -zxvf AmazonChimeSDKMedia-0.6.0.tar.gz\nrm NOTICE.txt THIRD-PARTY.txt\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
