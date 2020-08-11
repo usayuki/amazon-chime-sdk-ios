@@ -731,6 +731,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 5A15823123C4020D0099F8FA /* Build configuration list for PBXNativeTarget "AmazonChimeSDK" */;
 			buildPhases = (
+				7BEC599924E21F1C006CA45F /* ShellScript */,
 				5A15821823C4020D0099F8FA /* Headers */,
 				5A3CFC6423C52B5D00BB63B7 /* ShellScript */,
 				5A15821923C4020D0099F8FA /* Sources */,
@@ -876,6 +877,23 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nif which swiftlint >/dev/null; then\n  swiftlint\nelse\n  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\nfi\n";
+		};
+		7BEC599924E21F1C006CA45F /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "echo \"hogeeeeee\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
